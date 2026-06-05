@@ -1,10 +1,5 @@
 <?php
 require_once __DIR__ . '/../config.php';
-$user = !empty($_SESSION['user_id']) ? [
-    'id' => $_SESSION['user_id'],
-    'name' => $_SESSION['user_name'] ?? 'User',
-    'email' => $_SESSION['user_email'] ?? '',
-] : null;
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -25,18 +20,11 @@ $user = !empty($_SESSION['user_id']) ? [
                 </span>
             </a>
             
-            <?php if ($user): ?>
-                <nav class="main-nav" style="display: flex; align-items: center; gap: 8px; margin-left: auto;">
-                    <a href="index.php" style="color: #cbd5e1; font-size: 0.9rem; font-weight: 600; padding: 8px 16px; border-radius: 6px; transition: all 0.15s ease; text-decoration: none;" onmouseover="this.style.color='#ffffff'; this.style.backgroundColor='rgba(255,255,255,0.06)';" onmouseout="this.style.color='#cbd5e1'; this.style.backgroundColor='transparent';">Dashboard</a>
-                    <a href="records.php" style="color: #cbd5e1; font-size: 0.9rem; font-weight: 600; padding: 8px 16px; border-radius: 6px; transition: all 0.15s ease; text-decoration: none;" onmouseover="this.style.color='#ffffff'; this.style.backgroundColor='rgba(255,255,255,0.06)';" onmouseout="this.style.color='#cbd5e1'; this.style.backgroundColor='transparent';">Records</a>
-                    <a href="add_record.php" style="color: #cbd5e1; font-size: 0.9rem; font-weight: 600; padding: 8px 16px; border-radius: 6px; transition: all 0.15s ease; text-decoration: none;" onmouseover="this.style.color='#ffffff'; this.style.backgroundColor='rgba(255,255,255,0.06)';" onmouseout="this.style.color='#cbd5e1'; this.style.backgroundColor='transparent';">Add Record</a>
-                    
-                    <div class="user-chip" style="background-color: rgba(255, 255, 255, 0.04); border: 1px solid rgba(255, 255, 255, 0.12); color: #e2e8f0; font-size: 0.85rem; font-weight: 500; padding: 8px 16px; border-radius: 6px; white-space: nowrap; margin-right: 8px; margin-left: 12px;">
-                        Signed in as <?php echo htmlspecialchars($user['name']); ?>
-                    </div>
-                </nav>
-            <?php endif; ?>
+            <nav class="main-nav" style="display: flex; align-items: center; gap: 8px; margin-left: auto;">
+                <a href="index.php" style="color: #cbd5e1; font-size: 0.9rem; font-weight: 600; padding: 8px 16px; border-radius: 6px; transition: all 0.15s ease; text-decoration: none;" onmouseover="this.style.color='#ffffff'; this.style.backgroundColor='rgba(255,255,255,0.06)';" onmouseout="this.style.color='#cbd5e1'; this.style.backgroundColor='transparent';">Dashboard</a>
+                <a href="records.php" style="color: #cbd5e1; font-size: 0.9rem; font-weight: 600; padding: 8px 16px; border-radius: 6px; transition: all 0.15s ease; text-decoration: none;" onmouseover="this.style.color='#ffffff'; this.style.backgroundColor='rgba(255,255,255,0.06)';" onmouseout="this.style.color='#cbd5e1'; this.style.backgroundColor='transparent';">Records</a>
+                <a href="add_record.php" style="color: #cbd5e1; font-size: 0.9rem; font-weight: 600; padding: 8px 16px; border-radius: 6px; transition: all 0.15s ease; text-decoration: none;" onmouseover="this.style.color='#ffffff'; this.style.backgroundColor='rgba(255,255,255,0.06)';" onmouseout="this.style.color='#cbd5e1'; this.style.backgroundColor='transparent';">Add Record</a>
+            </nav>
 
-            
         </div>
     </header>
