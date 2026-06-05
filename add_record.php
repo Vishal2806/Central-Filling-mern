@@ -1,11 +1,14 @@
 <?php
-require_once __DIR__ . '/auth.php';
-requireLogin();
+require_once __DIR__ . '/config.php';
 $db = getDb();
 
 // Core static code options framework initialization parameters
-$civilOptions = ['OS', 'CA', 'WP', 'OP'];
-$criminalOptions = ['CC', 'CRA', 'BA', 'MC'];
+$civilOptions = [ "ARBA", "ARBAP", "ARBR", "AW", "CA", "CEA", "CER", "CESR", "COMA", "COMP", 
+    "CONC", "CONT", "CONTS", "CP", "CR", "CS", "CVLREF", "EA", "EDR", "EP", 
+    "FA", "FAM", "FA(MAT)", "ITA", "ITR", "LPA", "MA", "MAC", "MCA", "MCC", 
+    "MCCS", "MCP", "MP", "MWP", "OD", "REVP", "SA", "STR", "TAXC", "TPC", ];
+$criminalOptions = ["ACQA", "CONTR", "CRA", "CRMP", "CRREA", "MCRC", "MCRCA", "MCRP", "TPCR"];
+$writOptions = ["WA", "WP", "WP227", "WPC", "WPCR", "WPHC", "WPL", "WPPIL", "WPS", "WPT", "WTA", "WTR"];
 
 $caseNature = $_POST['caseNature'] ?? 'Civil';
 $caseTypeCode = $_POST['caseTypeCode'] ?? '';
@@ -58,7 +61,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 ':record_id' => $recordId,
                 ':status' => $status,
                 ':remark' => $remark,
-                ':updated_by' => 'User ID: ' . $_SESSION['user_id'],
+                ':updated_by' => 'User ID: ' . ($_SESSION['user_id'] ?? 'Unknown'),
             ]);
 
             header('Location: record_details.php?id=' . urlencode($recordId));
@@ -124,6 +127,13 @@ require_once __DIR__ . '/includes/header.php';
                             </option>
                         <?php endforeach; ?>
                     </optgroup>
+                    <optgroup label="Writ Cases">
+                        <?php foreach ($writOptions as $option): ?>
+                            <option value="<?php echo htmlspecialchars($option); ?>" <?php echo $caseTypeCode === $option ? 'selected' : ''; ?>>
+                                <?php echo htmlspecialchars($option); ?>
+                            </option>
+                        <?php endforeach; ?>
+                    </optgroup>
                 </select>
             </div>
 
@@ -172,4 +182,42 @@ require_once __DIR__ . '/includes/header.php';
         </form>
 
     </main>
+
+    <script>
+        document.getElementById('caseNature').addEventListener('change', function() {
+            const selectedNature = this.value;
+            const caseTypeCodeSelect = document.getElementById('caseTypeCode');
+            const optgroups = caseTypeCodeSelect.querySelectorAll('optgroup');
+            
+            // Hide all optgroups first
+            optgroups.forEach(group => {
+                group.style.display = 'none';
+            });
+            
+            // Show only the selected nature's optgroup
+            optgroups.forEach(group => {
+                if (group.label === selectedNature + ' Cases') {
+                    group.style.display = 'block';
+                }
+            });
+            
+            // Clear the selected case type code when nature changes
+            caseTypeCodeSelect.value = '';
+        });
+
+        // Initialize on page load to hide non-matching optgroups
+        document.addEventListener('DOMContentLoaded', function() {
+            const selectedNature = document.getElementById('caseNature').value;
+            const caseTypeCodeSelect = document.getElementById('caseTypeCode');
+            const optgroups = caseTypeCodeSelect.querySelectorAll('optgroup');
+            
+            optgroups.forEach(group => {
+                if (group.label === selectedNature + ' Cases') {
+                    group.style.display = 'block';
+                } else {
+                    group.style.display = 'none';
+                }
+            });
+        });
+    </script>
 <?php require_once __DIR__ . '/includes/footer.php'; ?>

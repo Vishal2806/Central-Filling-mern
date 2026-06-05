@@ -4,10 +4,7 @@ This project has been converted from a React + Node/Express + PostgreSQL applica
 
 ## Files
 - `config.php` — shared database connection and session initialization
-- `auth.php` — authentication helpers and login/session management
-- `login.php` — login form and credential validation
-- `logout.php` — session logout
-- `index.php` — authenticated dashboard
+- `index.php` — dashboard summary
 - `records.php` — record list, search, and status filter
 - `add_record.php` — create new filing records
 - `record_details.php` — view details, timeline, and update status
@@ -19,10 +16,9 @@ This project has been converted from a React + Node/Express + PostgreSQL applica
 2. Start PostgreSQL and make sure the configured user can create/use databases.
 3. Place the project in a PHP-enabled web root.
 4. Open `setup.php` once. It creates the `efile_db` database when missing, creates the required tables, and seeds the demo admin user.
-5. Open `login.php` and sign in.
+5. Open `index.php` to use the registry module.
 
 ## Notes
-- Authentication uses PHP sessions.
-- Password validation uses `password_verify()`.
+- This module no longer enforces its own login flow.
 - `records.php` supports searching by case number or advocate name and filtering by status.
 - `record_details.php` preserves history and increments `total_returns` when status becomes `RETURNED`.

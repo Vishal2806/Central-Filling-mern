@@ -1,6 +1,5 @@
 <?php
-require_once __DIR__ . '/auth.php';
-requireLogin();
+require_once __DIR__ . '/config.php';
 $db = getDb();
 
 $id = isset($_GET['id']) ? (int) $_GET['id'] : 0;
@@ -36,7 +35,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 ':record_id' => $id,
                 ':status' => $status,
                 ':remark' => $remark,
-                ':updated_by' => 'User ID: ' . $_SESSION['user_id'],
+                ':updated_by' => 'User ID: ' . ($_SESSION['user_id'] ?? 'Unknown'),
             ]);
         }
     }

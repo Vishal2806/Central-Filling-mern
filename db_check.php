@@ -86,7 +86,7 @@ try {
             <p><?php echo h(implode(', ', $tables)); ?></p>
         <?php endif; ?>
 
-        <p><a href="setup.php">Run setup</a> | <a href="login.php">Go to login</a></p>
+        <p><a href="setup.php">Run setup</a> | <a href="index.php">Go to registry</a></p>
     </main>
 </body>
 </html>

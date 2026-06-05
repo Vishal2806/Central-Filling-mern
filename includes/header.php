@@ -1,6 +1,10 @@
 <?php
-require_once __DIR__ . '/../auth.php';
-$user = currentUser();
+require_once __DIR__ . '/../config.php';
+$user = !empty($_SESSION['user_id']) ? [
+    'id' => $_SESSION['user_id'],
+    'name' => $_SESSION['user_name'] ?? 'User',
+    'email' => $_SESSION['user_email'] ?? '',
+] : null;
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -30,10 +34,9 @@ $user = currentUser();
                     <div class="user-chip" style="background-color: rgba(255, 255, 255, 0.04); border: 1px solid rgba(255, 255, 255, 0.12); color: #e2e8f0; font-size: 0.85rem; font-weight: 500; padding: 8px 16px; border-radius: 6px; white-space: nowrap; margin-right: 8px; margin-left: 12px;">
                         Signed in as <?php echo htmlspecialchars($user['name']); ?>
                     </div>
-
-                    <a href="logout.php" style="color: #ffffff; background-color: #ef4444; font-size: 0.88rem; font-weight: 600; padding: 8px 18px; border-radius: var(--radius-md, 8px); box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05); transition: background-color 0.15s ease; text-decoration: none;" onmouseover="this.style.backgroundColor='#dc2626';" onmouseout="this.style.backgroundColor='#ef4444';">Logout</a>
                 </nav>
             <?php endif; ?>
+
             
         </div>
     </header>

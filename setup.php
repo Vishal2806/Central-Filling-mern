@@ -71,7 +71,7 @@ try {
         $message = 'Database is ready. Demo admin user already exists.';
     }
 
-    echo '<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><title>Setup Complete</title><style>body{font-family:Arial,sans-serif;background:#f4f7fb;color:#1f2937;padding:40px;} .card{background:#fff;border:1px solid #e2e8f0;border-radius:16px;padding:24px;max-width:600px;margin:auto;} a{color:#1f3a56;text-decoration:none;}</style></head><body><div class="card"><h1>Setup Complete</h1><p>' . htmlspecialchars($message) . '</p><p><a href="login.php">Go to Login</a></p></div></body></html>';
+    echo '<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><title>Setup Complete</title><style>body{font-family:Arial,sans-serif;background:#f4f7fb;color:#1f2937;padding:40px;} .card{background:#fff;border:1px solid #e2e8f0;border-radius:16px;padding:24px;max-width:600px;margin:auto;} a{color:#1f3a56;text-decoration:none;}</style></head><body><div class="card"><h1>Setup Complete</h1><p>' . htmlspecialchars($message) . '</p><p><a href="index.php">Go to registry</a></p></div></body></html>';
 } catch (Exception $e) {
     echo '<p>Setup failed: ' . htmlspecialchars($e->getMessage()) . '</p>';
 }
