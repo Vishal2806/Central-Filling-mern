@@ -2,24 +2,36 @@
 require_once __DIR__ . '/config.php';
 $db = getDb();
 
-// Core static code options framework initialization parameters
-$civilOptions = [ "ARBA", "ARBAP", "ARBR", "AW", "CA", "CEA", "CER", "CESR", "COMA", "COMP", 
-    "CONC", "CONT", "CONTS", "CP", "CR", "CS", "CVLREF", "EA", "EDR", "EP", 
-    "FA", "FAM", "FA(MAT)", "ITA", "ITR", "LPA", "MA", "MAC", "MCA", "MCC", 
-    "MCCS", "MCP", "MP", "MWP", "OD", "REVP", "SA", "STR", "TAXC", "TPC", ];
+$civilOptions = ["ARBA", "ARBAP", "ARBR", "AW", "CA", "CEA", "CER", "CESR", "COMA", "COMP",
+                  "CONC", "CONT", "CONTS", "CP", "CR", "CS", "CVLREF", "EA", "EDR", "EP",
+                  "FA", "FAM", "FA(MAT)", "ITA", "ITR", "LPA", "MA", "MAC", "MCA", "MCC",
+                  "MCCS", "MCP", "MP", "MWP", "OD", "REVP", "SA", "STR", "TAXC", "TPC", 
+                ];
+
 $criminalOptions = ["ACQA", "CONTR", "CRA", "CRMP", "CRREA", "MCRC", "MCRCA", "MCRP", "TPCR"];
 $writOptions = ["WA", "WP", "WP227", "WPC", "WPCR", "WPHC", "WPL", "WPPIL", "WPS", "WPT", "WTA", "WTR"];
 
-$caseNature = $_POST['caseNature'] ?? 'Civil';
-$caseTypeCode = $_POST['caseTypeCode'] ?? '';
-$caseNo = $_POST['caseNo'] ?? '';
-$caseYear = $_POST['caseYear'] ?? '';
-$advocateName = $_POST['advocateName'] ?? '';
+$caseNature    = $_POST['caseNature']    ?? 'Civil';
+$caseTypeCode  = $_POST['caseTypeCode']  ?? '';
+$caseNo        = $_POST['caseNo']        ?? '';
+$caseYear      = $_POST['caseYear']      ?? '';
+$advocateName  = $_POST['advocateName']  ?? '';
 $advocateContact = $_POST['advocateContact'] ?? '';
 $paperbookSets = $_POST['paperbookSets'] ?? '1';
-$status = trim($_POST['status'] ?? 'SUBMITTED');
-$remark = $_POST['remark'] ?? '';
-$error = '';
+$status        = 'SUBMITTED';
+$remark        = $_POST['remark']        ?? '';
+$error         = '';
+
+// Fetch advocates from the configured external advocates DB.
+$advocates = [];
+try {
+    $advDb   = getDb('advocates');
+    // correct column names: adv_name, adv_reg, adv_mobile
+    $advStmt = $advDb->query('SELECT adv_name, adv_reg, adv_mobile FROM advocate_t ORDER BY adv_name');
+    $advocates = $advStmt->fetchAll(PDO::FETCH_ASSOC);
+} catch (Exception $e) {
+    $advocates = [];
+}
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($caseNo === '' || $caseYear === '' || $advocateName === '' || $remark === '') {
@@ -28,39 +40,40 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         try {
             $filingDate = $_POST['filingDate'] ?? date('Y-m-d');
             $filingTime = $_POST['filingTime'] ?? date('H:i:s');
-            
-            // Robust logic matrix matching central styling sheet status overrides
-            $checkStatus = trim($status);
-            $isReturnedStatus = ($checkStatus === 'RETURNED' || $checkStatus === 'RETURNED TO CENTRAL FILING' || $checkStatus === 'RETURNED TO ADVOCATE');
-            $totalReturns = $isReturnedStatus ? 1 : 0;
+
+            $checkStatus       = trim($status);
+            $isReturnedStatus  = ($checkStatus === 'RETURNED' || $checkStatus === 'RETURNED TO CENTRAL FILING' || $checkStatus === 'RETURNED TO ADVOCATE');
+            $totalReturns      = $isReturnedStatus ? 1 : 0;
 
             $stmt = $db->prepare(
-                'INSERT INTO records (case_no, case_year, advocate_name, advocate_contact, current_status, total_returns, latest_remark, filing_date, filing_time, case_nature, case_type_code, paperbook_sets) VALUES (:case_no, :case_year, :advocate_name, :advocate_contact, :current_status, :total_returns, :latest_remark, :filing_date, :filing_time, :case_nature, :case_type_code, :paperbook_sets) RETURNING id'
+                'INSERT INTO records (case_no, case_year, advocate_name, advocate_contact, current_status, total_returns, latest_remark, filing_date, filing_time, case_nature, case_type_code, paperbook_sets)
+                 VALUES (:case_no, :case_year, :advocate_name, :advocate_contact, :current_status, :total_returns, :latest_remark, :filing_date, :filing_time, :case_nature, :case_type_code, :paperbook_sets)
+                 RETURNING id'
             );
 
             $stmt->execute([
-                ':case_no' => $caseNo,
-                ':case_year' => $caseYear,
-                ':advocate_name' => $advocateName,
-                ':advocate_contact' => $advocateContact ?: null,
-                ':current_status' => $status,
-                ':total_returns' => $totalReturns,
-                ':latest_remark' => $remark,
-                ':filing_date' => $filingDate,
-                ':filing_time' => $filingTime,
-                ':case_nature' => $caseNature,
-                ':case_type_code' => $caseTypeCode ?: null,
-                ':paperbook_sets' => (int) $paperbookSets,
+                ':case_no'           => $caseNo,
+                ':case_year'         => $caseYear,
+                ':advocate_name'     => $advocateName,
+                ':advocate_contact'  => $advocateContact ?: null,
+                ':current_status'    => $status,
+                ':total_returns'     => $totalReturns,
+                ':latest_remark'     => $remark,
+                ':filing_date'       => $filingDate,
+                ':filing_time'       => $filingTime,
+                ':case_nature'       => $caseNature,
+                ':case_type_code'    => $caseTypeCode ?: null,
+                ':paperbook_sets'    => (int) $paperbookSets,
             ]);
 
             $newRecord = $stmt->fetch();
-            $recordId = $newRecord['id'];
+            $recordId  = $newRecord['id'];
 
             $historyStmt = $db->prepare('INSERT INTO record_history (record_id, status, remark, updated_by) VALUES (:record_id, :status, :remark, :updated_by)');
             $historyStmt->execute([
-                ':record_id' => $recordId,
-                ':status' => $status,
-                ':remark' => $remark,
+                ':record_id'  => $recordId,
+                ':status'     => $status,
+                ':remark'     => $remark,
                 ':updated_by' => 'User ID: ' . ($_SESSION['user_id'] ?? 'Unknown'),
             ]);
 
@@ -72,152 +85,279 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 
-$statusOptions = [
-    'SUBMITTED' => 'Submitted', 
-    'PENDING' => 'Pending', 
-    'RETURNED TO CENTRAL FILING' => 'Returned to Central Filing',
-    'RETURNED TO ADVOCATE' => 'Returned to Advocate',
-    'RESUBMITTED' => 'Resubmitted', 
-    'APPROVED' => 'Approved'
-];
 $caseNatureOptions = ['Civil', 'Criminal', 'Writ'];
 
 require_once __DIR__ . '/includes/header.php';
 ?>
-    <!-- Fixed: Wrapped page layout elements inside a master responsive container shell -->
-    <main class="container">
 
-        <!-- Fixed: Wrapped title structure inside structured page-header tags to align margins perfectly -->
-        <section class="page-header">
-            <div>
-                <h1>New Filing Record</h1>
-                <p>Create an official filing registry entry with case and advocate details.</p>
+<main class="container">
+
+    <section class="page-header">
+        <div>
+            <h1>New Filing Record</h1>
+            <p>Create an official filing registry entry with case and advocate details.</p>
+        </div>
+    </section>
+
+    <?php if ($error): ?>
+        <div class="alert alert-error"><?php echo htmlspecialchars($error); ?></div>
+    <?php endif; ?>
+
+    <form method="post" class="form-panel add-record-form">
+
+        <!-- Case Nature -->
+        <div class="field-group case-nature-field">
+            <label>Case Nature</label>
+            <div class="nature-selector">
+                <?php foreach ($caseNatureOptions as $nature): ?>
+                    <label class="nature-option <?php echo $nature === $caseNature ? 'active' : ''; ?>">
+                        <input 
+                            type="radio" 
+                            name="caseNature" 
+                            value="<?php echo htmlspecialchars($nature); ?>"
+                            <?php echo $nature === $caseNature ? 'checked' : ''; ?>
+                        />
+                        <span><?php echo htmlspecialchars($nature); ?></span>
+                    </label>
+                <?php endforeach; ?>
             </div>
-        </section>
+        </div>
 
-        <?php if ($error): ?>
-            <div class="alert alert-error"><?php echo htmlspecialchars($error); ?></div>
-        <?php endif; ?>
-
-        <form method="post" class="form-panel">
-            <div class="field-group">
-                <label for="caseNature">Case Nature</label>
-                <select id="caseNature" name="caseNature">
-                    <?php foreach ($caseNatureOptions as $nature): ?>
-                        <option value="<?php echo htmlspecialchars($nature); ?>" <?php echo $nature === $caseNature ? 'selected' : ''; ?>><?php echo htmlspecialchars($nature); ?></option>
+        <!-- Case Type Code -->
+        <div class="field-group">
+            <label for="caseTypeCode">Case Type</label>
+            <select id="caseTypeCode" name="caseTypeCode">
+                <option value="">Select Case Type</option>
+                <optgroup label="Civil Cases">
+                    <?php foreach ($civilOptions as $option): ?>
+                        <option value="<?php echo htmlspecialchars($option); ?>"
+                            <?php echo $caseTypeCode === $option ? 'selected' : ''; ?>>
+                            <?php echo htmlspecialchars($option); ?>
+                        </option>
                     <?php endforeach; ?>
-                </select>
-            </div>
-
-            <div class="field-group">
-                <label for="caseTypeCode">Case Type Code</label>
-                <select id="caseTypeCode" name="caseTypeCode">
-                    <option value="">Select Case Type</option>
-                    <optgroup label="Civil Cases">
-                        <?php foreach ($civilOptions as $option): ?>
-                            <option value="<?php echo htmlspecialchars($option); ?>" <?php echo $caseTypeCode === $option ? 'selected' : ''; ?>>
-                                <?php echo htmlspecialchars($option); ?>
-                            </option>
-                        <?php endforeach; ?>
-                    </optgroup>
-                    <optgroup label="Criminal Cases">
-                        <?php foreach ($criminalOptions as $option): ?>
-                            <option value="<?php echo htmlspecialchars($option); ?>" <?php echo $caseTypeCode === $option ? 'selected' : ''; ?>>
-                                <?php echo htmlspecialchars($option); ?>
-                            </option>
-                        <?php endforeach; ?>
-                    </optgroup>
-                    <optgroup label="Writ Cases">
-                        <?php foreach ($writOptions as $option): ?>
-                            <option value="<?php echo htmlspecialchars($option); ?>" <?php echo $caseTypeCode === $option ? 'selected' : ''; ?>>
-                                <?php echo htmlspecialchars($option); ?>
-                            </option>
-                        <?php endforeach; ?>
-                    </optgroup>
-                </select>
-            </div>
-
-            <div class="field-group">
-                <label for="caseNo">Case No</label>
-                <input type="text" id="caseNo" name="caseNo" value="<?php echo htmlspecialchars($caseNo); ?>" required />
-            </div>
-
-            <div class="field-group">
-                <label for="caseYear">Case Year</label>
-                <input type="text" id="caseYear" name="caseYear" value="<?php echo htmlspecialchars($caseYear); ?>" required />
-            </div>
-
-            <div class="field-group">
-                <label for="advocateName">Advocate Name</label>
-                <input type="text" id="advocateName" name="advocateName" value="<?php echo htmlspecialchars($advocateName); ?>" required />
-            </div>
-
-            <div class="field-group">
-                <label for="advocateContact">Advocate Contact</label>
-                <input type="text" id="advocateContact" name="advocateContact" value="<?php echo htmlspecialchars($advocateContact); ?>" />
-            </div>
-
-            <div class="field-group">
-                <label for="paperbookSets">Paperbook Sets</label>
-                <input type="number" min="1" id="paperbookSets" name="paperbookSets" value="<?php echo htmlspecialchars($paperbookSets); ?>" required />
-            </div>
-
-            <div class="field-group">
-                <label for="status">Status</label>
-                <select id="status" name="status">
-                    <?php foreach ($statusOptions as $value => $label): ?>
-                        <option value="<?php echo htmlspecialchars($value); ?>" <?php echo trim($value) === trim($status) ? 'selected' : ''; ?>><?php echo htmlspecialchars($label); ?></option>
+                </optgroup>
+                <optgroup label="Criminal Cases">
+                    <?php foreach ($criminalOptions as $option): ?>
+                        <option value="<?php echo htmlspecialchars($option); ?>"
+                            <?php echo $caseTypeCode === $option ? 'selected' : ''; ?>>
+                            <?php echo htmlspecialchars($option); ?>
+                        </option>
                     <?php endforeach; ?>
-                </select>
-            </div>
+                </optgroup>
+                <optgroup label="Writ Cases">
+                    <?php foreach ($writOptions as $option): ?>
+                        <option value="<?php echo htmlspecialchars($option); ?>"
+                            <?php echo $caseTypeCode === $option ? 'selected' : ''; ?>>
+                            <?php echo htmlspecialchars($option); ?>
+                        </option>
+                    <?php endforeach; ?>
+                </optgroup>
+            </select>
+        </div>
 
-            <div class="field-group full-width">
-                <label for="remark">Remark</label>
-                <textarea id="remark" name="remark" rows="4" required><?php echo htmlspecialchars($remark); ?></textarea>
-            </div>
+        
+        <!-- Case No -->
+        <div class="field-group">
+            <label for="caseNo">Case No</label>
+            <input type="text" id="caseNo" name="caseNo"
+            value="<?php echo htmlspecialchars($caseNo); ?>" required />
+        </div>
+        
+        <!-- Case Year -->
+        <div class="field-group">
+            <label for="caseYear">Case Year</label>
+            <input type="text" id="caseYear" name="caseYear"
+                   value="<?php echo htmlspecialchars($caseYear); ?>" required />
+        </div>
+        <!-- Advocate Name — custom autocomplete -->
+        <div class="field-group adv-autocomplete-wrap">
+            <label for="advocateName">Advocate Name</label>
+            <input
+                type="text"
+                id="advocateName"
+                name="advocateName"
+                value="<?php echo htmlspecialchars($advocateName); ?>"
+                required
+                autocomplete="off"
+                placeholder="Type name or registration no…"
+            />
+            <ul id="advocateSuggestions" class="adv-suggestions" aria-label="Advocate suggestions"></ul>
+        </div>
 
-            <div style="grid-column: 1 / -1; display: flex; justify-content: flex-start; margin-top: 4px;">
-                <button type="submit" class="button button-primary">Save Record</button>
-            </div>
-        </form>
+        <!-- Advocate Contact — auto-filled -->
+        <div class="field-group">
+            <label for="advocateContact">Advocate Contact</label>
+            <input
+                type="text"
+                id="advocateContact"
+                name="advocateContact"
+                value="<?php echo htmlspecialchars($advocateContact); ?>"
+                placeholder="Auto-filled on selection"
+            />
+        </div>
 
-    </main>
+        <!-- Paperbook Sets -->
+        <div class="field-group">
+            <label for="paperbookSets">Paperbook Sets</label>
+            <input type="number" min="1" id="paperbookSets" name="paperbookSets"
+                   value="<?php echo htmlspecialchars($paperbookSets); ?>" required />
+        </div>
 
-    <script>
-        document.getElementById('caseNature').addEventListener('change', function() {
-            const selectedNature = this.value;
-            const caseTypeCodeSelect = document.getElementById('caseTypeCode');
-            const optgroups = caseTypeCodeSelect.querySelectorAll('optgroup');
-            
-            // Hide all optgroups first
-            optgroups.forEach(group => {
-                group.style.display = 'none';
+        <input type="hidden" name="status" value="SUBMITTED" />
+
+        <!-- Remark — full width -->
+        <div class="field-group full-width">
+            <label for="remark">Remark</label>
+            <textarea id="remark" name="remark" rows="4" required><?php echo htmlspecialchars($remark); ?></textarea>
+        </div>
+
+        <!-- Submit -->
+        <div class="full-width form-actions">
+            <button type="submit" class="button button-primary">Save Record</button>
+        </div>
+
+    </form>
+
+</main>
+
+<!-- Advocate data passed safely to JS -->
+<script>
+const ADVOCATES = <?php echo json_encode(array_values($advocates), JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP); ?>;
+
+(function () {
+    const nameInput     = document.getElementById('advocateName');
+    const contactInput  = document.getElementById('advocateContact');
+    const box           = document.getElementById('advocateSuggestions');
+    let activeIdx       = -1;
+
+    /* ── render dropdown ── */
+    function render(list) {
+        box.innerHTML = '';
+        activeIdx = -1;
+
+        if (!list.length) { box.classList.remove('open'); return; }
+
+        list.forEach(function (adv, i) {
+            const li = document.createElement('li');
+            li.className   = 'adv-suggestion-item';
+            li.dataset.idx = i;
+
+            const nameSpan = document.createElement('span');
+            nameSpan.className   = 'adv-name';
+            nameSpan.textContent = adv.adv_name;
+
+            const regSpan = document.createElement('span');
+            regSpan.className   = 'adv-reg';
+            regSpan.textContent = adv.adv_reg ? adv.adv_reg : '';
+
+            li.appendChild(nameSpan);
+            if (adv.adv_reg) li.appendChild(regSpan);
+
+            li.addEventListener('mousedown', function (e) {
+                e.preventDefault();          // keep focus on input
+                selectAdvocate(adv);
             });
-            
-            // Show only the selected nature's optgroup
-            optgroups.forEach(group => {
-                if (group.label === selectedNature + ' Cases') {
-                    group.style.display = 'block';
-                }
-            });
-            
-            // Clear the selected case type code when nature changes
-            caseTypeCodeSelect.value = '';
+            box.appendChild(li);
         });
 
-        // Initialize on page load to hide non-matching optgroups
-        document.addEventListener('DOMContentLoaded', function() {
-            const selectedNature = document.getElementById('caseNature').value;
-            const caseTypeCodeSelect = document.getElementById('caseTypeCode');
-            const optgroups = caseTypeCodeSelect.querySelectorAll('optgroup');
-            
-            optgroups.forEach(group => {
-                if (group.label === selectedNature + ' Cases') {
-                    group.style.display = 'block';
-                } else {
-                    group.style.display = 'none';
-                }
-            });
+        box.classList.add('open');
+    }
+
+    function selectAdvocate(adv) {
+        nameInput.value    = adv.adv_name;
+        contactInput.value = adv.adv_mobile || '';
+        box.classList.remove('open');
+        box.innerHTML = '';
+        activeIdx = -1;
+    }
+
+    function highlight(idx) {
+        const items = box.querySelectorAll('.adv-suggestion-item');
+        items.forEach(function (el, i) {
+            el.classList.toggle('active', i === idx);
         });
-    </script>
-<?php require_once __DIR__ . '/includes/footer.php'; ?>
+        activeIdx = idx;
+    }
+
+    /* ── filter on type ── */
+    nameInput.addEventListener('input', function () {
+        contactInput.value = '';          // clear stale mobile
+        const q = this.value.trim().toLowerCase();
+        if (!q) { box.classList.remove('open'); box.innerHTML = ''; return; }
+
+        const matches = ADVOCATES.filter(function (a) {
+            return (a.adv_name && a.adv_name.toLowerCase().includes(q)) ||
+                   (a.adv_reg  && a.adv_reg.toLowerCase().includes(q));
+        }).slice(0, 25);
+
+        render(matches);
+    });
+
+    /* ── keyboard navigation ── */
+    nameInput.addEventListener('keydown', function (e) {
+        const items = box.querySelectorAll('.adv-suggestion-item');
+        if (!items.length) return;
+
+        if (e.key === 'ArrowDown') {
+            e.preventDefault();
+            highlight(Math.min(activeIdx + 1, items.length - 1));
+        } else if (e.key === 'ArrowUp') {
+            e.preventDefault();
+            highlight(Math.max(activeIdx - 1, 0));
+        } else if (e.key === 'Enter' && activeIdx >= 0) {
+            e.preventDefault();
+            const adv = ADVOCATES.filter(function (a) {
+                const q = nameInput.value.trim().toLowerCase();
+                return (a.adv_name && a.adv_name.toLowerCase().includes(q)) ||
+                       (a.adv_reg  && a.adv_reg.toLowerCase().includes(q));
+            }).slice(0, 25)[activeIdx];
+            if (adv) selectAdvocate(adv);
+        } else if (e.key === 'Escape') {
+            box.classList.remove('open');
+        }
+    });
+
+    /* ── close on outside click ── */
+    document.addEventListener('click', function (e) {
+        if (!nameInput.contains(e.target) && !box.contains(e.target)) {
+            box.classList.remove('open');
+        }
+    });
+
+    /* ── re-open on focus if text present ── */
+    nameInput.addEventListener('focus', function () {
+        if (this.value.trim()) this.dispatchEvent(new Event('input'));
+    });
+
+    /* ── Case Nature → filter optgroups ── */
+    const natureRadios   = document.querySelectorAll('input[name="caseNature"]');
+    const codeSelect     = document.getElementById('caseTypeCode');
+
+    function filterOptgroups(nature) {
+        codeSelect.querySelectorAll('optgroup').forEach(function (g) {
+            g.style.display = (g.label === nature + ' Cases') ? '' : 'none';
+        });
+    }
+
+    natureRadios.forEach(function (radio) {
+        radio.addEventListener('change', function () {
+            filterOptgroups(this.value);
+            codeSelect.value = '';
+            
+            // Update active styling
+            document.querySelectorAll('.nature-option').forEach(function (opt) {
+                opt.classList.remove('active');
+            });
+            this.closest('.nature-option').classList.add('active');
+        });
+    });
+
+    /* ── init on load ── */
+    const checkedNature = document.querySelector('input[name="caseNature"]:checked');
+    if (checkedNature) {
+        filterOptgroups(checkedNature.value);
+    }
+}());
+</script>
+
+<?php require_once __DIR__ . '/includes/footer.php'; ?> 

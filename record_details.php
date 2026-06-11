@@ -11,6 +11,39 @@ if ($id <= 0) {
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $status = $_POST['status'] ?? '';
     $remark = trim($_POST['remark'] ?? '');
+    $signaturePath = '';
+    $uploadError = '';
+
+    // Handle signature upload for RETURNED statuses
+    $isReturnedStatus = ($status === 'RETURNED TO CENTRAL FILING' || $status === 'RETURNED TO ADVOCATE' || $status === 'RETURNED TO ADVOCATE ');
+    if ($isReturnedStatus && isset($_FILES['signature']) && $_FILES['signature']['error'] !== UPLOAD_ERR_NO_FILE) {
+        if ($_FILES['signature']['error'] === UPLOAD_ERR_OK) {
+            $uploadDir = __DIR__ . '/uploads/signatures/';
+            if (!is_dir($uploadDir)) {
+                mkdir($uploadDir, 0755, true);
+            }
+            
+            // Validate file type
+            $allowedExt = ['jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp'];
+            $ext = strtolower(pathinfo($_FILES['signature']['name'], PATHINFO_EXTENSION));
+            
+            if (in_array($ext, $allowedExt)) {
+                $filename = 'sig_' . $id . '_' . time() . '.' . $ext;
+                $uploadPath = $uploadDir . $filename;
+                
+                if (move_uploaded_file($_FILES['signature']['tmp_name'], $uploadPath)) {
+                    $signaturePath = 'uploads/signatures/' . $filename;
+                    chmod($uploadPath, 0644);
+                } else {
+                    $uploadError = 'Failed to move uploaded file. Check folder permissions.';
+                }
+            } else {
+                $uploadError = 'Invalid file type. Only image files allowed.';
+            }
+        } else {
+            $uploadError = 'File upload error: ' . $_FILES['signature']['error'];
+        }
+    }
 
     if ($status !== '' && $remark !== '') {
         $recordStmt = $db->prepare('SELECT total_returns FROM records WHERE id = :id');
@@ -30,14 +63,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 ':id' => $id,
             ]);
 
-            $historyStmt = $db->prepare('INSERT INTO record_history (record_id, status, remark, updated_by) VALUES (:record_id, :status, :remark, :updated_by)');
-            $historyStmt->execute([
-                ':record_id' => $id,
-                ':status' => $status,
-                ':remark' => $remark,
-                ':updated_by' => 'User ID: ' . ($_SESSION['user_id'] ?? 'Unknown'),
-            ]);
+            try {
+                $historyStmt = $db->prepare('INSERT INTO record_history (record_id, status, remark, signature_path, updated_by) VALUES (:record_id, :status, :remark, :signature_path, :updated_by)');
+                $historyStmt->execute([
+                    ':record_id' => $id,
+                    ':status' => $status,
+                    ':remark' => $remark,
+                    ':signature_path' => $signaturePath,
+                    ':updated_by' => 'User ID: ' . ($_SESSION['user_id'] ?? 'Unknown'),
+                ]);
+            } catch (Exception $e) {
+                $uploadError = 'Database Error: ' . $e->getMessage() . '. Make sure signature_path column exists in record_history table.';
+            }
         }
+    }
+
+    if ($uploadError) {
+        $_SESSION['upload_error'] = $uploadError;
     }
 
     header('Location: record_details.php?id=' . urlencode($id));
@@ -53,7 +95,7 @@ if (!$record) {
     exit;
 }
 
-$historyStmt = $db->prepare('SELECT id, status, remark, created_at FROM record_history WHERE record_id = :record_id ORDER BY created_at ASC');
+$historyStmt = $db->prepare('SELECT id, status, remark, signature_path, created_at FROM record_history WHERE record_id = :record_id ORDER BY created_at ASC');
 $historyStmt->execute([':record_id' => $id]);
 $history = $historyStmt->fetchAll();
 
@@ -69,6 +111,13 @@ require_once __DIR__ . '/includes/header.php';
                 <p>Review filing particulars, status history, and registry updates.</p>
             </div>
         </section>
+
+        <?php if (isset($_SESSION['upload_error'])): ?>
+            <div class="alert-error">
+                <strong>Upload Error:</strong> <?php echo htmlspecialchars($_SESSION['upload_error']); ?>
+            </div>
+            <?php unset($_SESSION['upload_error']); ?>
+        <?php endif; ?>
 
         <section class="panel">
             <div class="record-details-grid">
@@ -121,7 +170,7 @@ require_once __DIR__ . '/includes/header.php';
 
         <section class="panel">
             <h2>Update Record</h2>
-            <form method="post" class="form-grid">
+            <form method="post" class="form-grid" enctype="multipart/form-data">
                 <div class="field-group">
                     <label for="status-select">Status</label>
                     <select id="status-select" name="status" required>
@@ -134,11 +183,38 @@ require_once __DIR__ . '/includes/header.php';
                     <label for="remark-input">Remark</label>
                     <textarea id="remark-input" name="remark" rows="4" required></textarea>
                 </div>
+                <div class="field-group full-width" id="signature-field" style="display: none;">
+                    <label for="signature-input">Signature <span style="color: #dc2626;">*</span></label>
+                    <input type="file" id="signature-input" name="signature" accept="image/*" />
+                    <small style="color: var(--muted); margin-top: 4px; display: block;">Upload signature image (PNG, JPG, etc.)</small>
+                </div>
                 <div style="grid-column: 1 / -1;">
                     <button type="submit" class="button button-primary">Save Update</button>
                 </div>
             </form>
         </section>
+
+        <script>
+            const statusSelect = document.getElementById('status-select');
+            const signatureField = document.getElementById('signature-field');
+            const signatureInput = document.getElementById('signature-input');
+            const returnedStatuses = ['RETURNED TO CENTRAL FILING', 'RETURNED TO ADVOCATE ', 'RETURNED TO ADVOCATE'];
+
+            function toggleSignatureField() {
+                const selectedStatus = statusSelect.value;
+                if (returnedStatuses.includes(selectedStatus)) {
+                    signatureField.style.display = 'block';
+                    signatureInput.required = true;
+                } else {
+                    signatureField.style.display = 'none';
+                    signatureInput.required = false;
+                    signatureInput.value = '';
+                }
+            }
+
+            statusSelect.addEventListener('change', toggleSignatureField);
+            toggleSignatureField();
+        </script>
 
         <section class="panel">
             <h2>History Timeline</h2>
@@ -149,9 +225,10 @@ require_once __DIR__ . '/includes/header.php';
                     <table class="history-table">
                         <thead>
                             <tr>
-                                <th style="width: 280px;">Status</th>
+                                <th style="width: 200px;">Status</th>
                                 <th>Remarks</th>
-                                <th style="width: 180px; text-align: right;">Updated At</th>
+                                <th style="width: 120px;">Signature</th>
+                                <th style="width: 160px; text-align: right;">Updated At</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -163,6 +240,15 @@ require_once __DIR__ . '/includes/header.php';
                                         </span>
                                     </td>
                                     <td style="color: var(--ink); font-weight: 500; font-size: 0.92rem; line-height: 1.6;"><?php echo htmlspecialchars($item['remark']); ?></td>
+                                    <td style="text-align: center;">
+                                        <?php if (!empty($item['signature_path'])): ?>
+                                            <a href="<?php echo htmlspecialchars($item['signature_path']); ?>" target="_blank" style="display: inline-block;">
+                                                <img src="<?php echo htmlspecialchars($item['signature_path']); ?>" alt="Signature" style="max-height: 50px; max-width: 100px; border: 1px solid var(--line); border-radius: 4px; cursor: pointer; transition: transform 0.2s ease;" onmouseover="this.style.transform='scale(1.1)'" onmouseout="this.style.transform='scale(1)'" />
+                                            </a>
+                                        <?php else: ?>
+                                            <span style="color: var(--muted); font-size: 0.85rem;">—</span>
+                                        <?php endif; ?>
+                                    </td>
                                     <td style="text-align: right; color: var(--muted); font-weight: 600; font-size: 0.88rem;"><?php echo htmlspecialchars($item['created_at']); ?></td>
                                 </tr>
                             <?php endforeach; ?>

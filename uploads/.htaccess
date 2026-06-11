@@ -1,0 +1,12 @@
+# Allow all image files to be viewed
+<FilesMatch "\.(jpg|jpeg|png|gif|bmp|webp)$">
+    Allow from all
+</FilesMatch>
+
+# Prevent PHP execution in this directory for security
+<FilesMatch "\.php$">
+    Deny from all
+</FilesMatch>
+
+# Allow directory listing for signatures folder
+Options +Indexes
