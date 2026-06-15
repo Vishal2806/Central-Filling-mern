@@ -48,6 +48,7 @@ try {
             record_id INTEGER REFERENCES records(id) ON DELETE CASCADE,
             status TEXT,
             remark TEXT,
+            signature_path TEXT,
             updated_by TEXT,
             created_at TIMESTAMP DEFAULT NOW()
         )'
