@@ -11,16 +11,17 @@ $civilOptions = ["ARBA", "ARBAP", "ARBR", "AW", "CA", "CEA", "CER", "CESR", "COM
 $criminalOptions = ["ACQA", "CONTR", "CRA", "CRMP", "CRREA", "MCRC", "MCRCA", "MCRP", "TPCR"];
 $writOptions = ["WA", "WP", "WP227", "WPC", "WPCR", "WPHC", "WPL", "WPPIL", "WPS", "WPT", "WTA", "WTR"];
 
-$caseNature    = $_POST['caseNature']    ?? 'Civil';
-$caseTypeCode  = $_POST['caseTypeCode']  ?? '';
-$caseNo        = $_POST['caseNo']        ?? '';
-$caseYear      = $_POST['caseYear']      ?? '';
-$advocateName  = $_POST['advocateName']  ?? '';
+$caseNature      = $_POST['caseNature']    ?? 'Civil';
+$caseTypeCode    = $_POST['caseTypeCode']  ?? '';
+$caseNo          = $_POST['caseNo']        ?? '';
+$caseYear        = $_POST['caseYear']      ?? '';
+$advocateName    = $_POST['advocateName']  ?? '';
 $advocateContact = $_POST['advocateContact'] ?? '';
-$paperbookSets = $_POST['paperbookSets'] ?? '1';
-$status        = 'SUBMITTED';
-$remark        = $_POST['remark']        ?? '';
-$error         = '';
+$paperbookSets   = $_POST['paperbookSets'] ?? '1';
+$status          = 'SUBMITTED';
+$remark          = $_POST['remark']        ?? '';
+$signaturePath   = '';
+$error           = '';
 
 // Fetch advocates from the configured external advocates DB.
 $advocates = [];
@@ -34,17 +35,46 @@ try {
 }
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    if ($caseNo === '' || $caseYear === '' || $advocateName === '' || $remark === '') {
-        $error = 'Please complete all required fields.';
-    } else {
-        try {
-            $filingDate = $_POST['filingDate'] ?? date('Y-m-d');
-            $filingTime = $_POST['filingTime'] ?? date('H:i:s');
+        if ($caseNo === '' || $caseYear === '' || $advocateName === '' || $remark === '') {
+            $error = 'Please complete all required fields.';
+        } elseif (!isset($_FILES['signature']) || $_FILES['signature']['error'] === UPLOAD_ERR_NO_FILE) {
+            $error = 'Signature image is required for first-time filing.';
+        } else {
+            if ($_FILES['signature']['error'] === UPLOAD_ERR_OK) {
+                $uploadDir = __DIR__ . '/uploads/signatures/';
+                if (!is_dir($uploadDir)) {
+                    mkdir($uploadDir, 0755, true);
+                }
 
-            $checkStatus       = trim($status);
-            $isReturnedStatus  = ($checkStatus === 'RETURNED' || $checkStatus === 'RETURNED TO CENTRAL FILING' || $checkStatus === 'RETURNED TO ADVOCATE');
-            $totalReturns      = $isReturnedStatus ? 1 : 0;
+                $allowedExt = ['jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp'];
+                $ext = strtolower(pathinfo($_FILES['signature']['name'], PATHINFO_EXTENSION));
 
+                if (in_array($ext, $allowedExt, true)) {
+                    $filename = 'sig_new_' . time() . '_' . bin2hex(random_bytes(4)) . '.' . $ext;
+                    $uploadPath = $uploadDir . $filename;
+
+                    if (move_uploaded_file($_FILES['signature']['tmp_name'], $uploadPath)) {
+                        $signaturePath = 'uploads/signatures/' . $filename;
+                        chmod($uploadPath, 0644);
+                    } else {
+                        $error = 'Failed to move uploaded signature. Check folder permissions.';
+                    }
+                } else {
+                    $error = 'Invalid signature file type. Only image files are allowed.';
+                }
+            } else {
+                $error = 'Signature upload error: ' . $_FILES['signature']['error'];
+            }
+        }
+
+        if ($error === '') {
+            try {
+                $filingDate = $_POST['filingDate'] ?? date('Y-m-d');
+                $filingTime = $_POST['filingTime'] ?? date('H:i:s');
+
+                $checkStatus       = trim($status);
+                $isReturnedStatus  = ($checkStatus === 'RETURNED' || $checkStatus === 'RETURNED TO CENTRAL FILING' || $checkStatus === 'RETURNED TO ADVOCATE');
+                $totalReturns      = $isReturnedStatus ? 1 : 0;
             $stmt = $db->prepare(
                 'INSERT INTO records (case_no, case_year, advocate_name, advocate_contact, current_status, total_returns, latest_remark, filing_date, filing_time, case_nature, case_type_code, paperbook_sets)
                  VALUES (:case_no, :case_year, :advocate_name, :advocate_contact, :current_status, :total_returns, :latest_remark, :filing_date, :filing_time, :case_nature, :case_type_code, :paperbook_sets)
@@ -69,12 +99,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $newRecord = $stmt->fetch();
             $recordId  = $newRecord['id'];
 
-            $historyStmt = $db->prepare('INSERT INTO record_history (record_id, status, remark, updated_by) VALUES (:record_id, :status, :remark, :updated_by)');
+            $historyStmt = $db->prepare('INSERT INTO record_history (record_id, status, remark, signature_path, updated_by) VALUES (:record_id, :status, :remark, :signature_path, :updated_by)');
             $historyStmt->execute([
-                ':record_id'  => $recordId,
-                ':status'     => $status,
-                ':remark'     => $remark,
-                ':updated_by' => 'User ID: ' . ($_SESSION['user_id'] ?? 'Unknown'),
+                ':record_id'     => $recordId,
+                ':status'        => $status,
+                ':remark'        => $remark,
+                ':signature_path'=> $signaturePath,
+                ':updated_by'    => 'User ID: ' . ($_SESSION['user_id'] ?? 'Unknown'),
             ]);
 
             header('Location: record_details.php?id=' . urlencode($recordId));
@@ -103,7 +134,7 @@ require_once __DIR__ . '/includes/header.php';
         <div class="alert alert-error"><?php echo htmlspecialchars($error); ?></div>
     <?php endif; ?>
 
-    <form method="post" class="form-panel add-record-form">
+    <form method="post" class="form-panel add-record-form" enctype="multipart/form-data">
 
         <!-- Case Nature -->
         <div class="field-group case-nature-field">
@@ -209,6 +240,22 @@ require_once __DIR__ . '/includes/header.php';
         <div class="field-group full-width">
             <label for="remark">Remark</label>
             <textarea id="remark" name="remark" rows="4" required><?php echo htmlspecialchars($remark); ?></textarea>
+        </div>
+
+        <!-- Signature upload -->
+        <div class="field-group full-width" id="signature-field">
+            <label>Advocate Signature</label>
+            <input type="file" id="signature" name="signature" accept="image/*" hidden required />
+
+            <label for="signature" class="signature-upload-btn">
+                📄 Choose Signature
+            </label>
+
+            <span id="signature-file-name">No file selected</span>
+
+            <small style="color: var(--muted); margin-top: 4px; display: block;">
+                Upload the advocate's signature image for initial filing.
+            </small>
         </div>
 
         <!-- Submit -->
@@ -328,6 +375,19 @@ const ADVOCATES = <?php echo json_encode(array_values($advocates), JSON_HEX_TAG 
     nameInput.addEventListener('focus', function () {
         if (this.value.trim()) this.dispatchEvent(new Event('input'));
     });
+
+    const signatureInput = document.getElementById('signature');
+    const signatureFileName = document.getElementById('signature-file-name');
+
+    if (signatureInput) {
+        signatureInput.addEventListener('change', function () {
+            if (this.files && this.files.length > 0) {
+                signatureFileName.textContent = this.files[0].name;
+            } else {
+                signatureFileName.textContent = 'No file selected';
+            }
+        });
+    }
 
     /* ── Case Nature → filter optgroups ── */
     const natureRadios   = document.querySelectorAll('input[name="caseNature"]');

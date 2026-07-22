@@ -184,9 +184,17 @@ require_once __DIR__ . '/includes/header.php';
                     <textarea id="remark-input" name="remark" rows="4" required></textarea>
                 </div>
                 <div class="field-group full-width" id="signature-field" style="display: none;">
-                    <label for="signature-input">Signature <span style="color: #dc2626;">*</span></label>
-                    <input type="file" id="signature-input" name="signature" accept="image/*" />
-                    <small style="color: var(--muted); margin-top: 4px; display: block;">Upload signature image (PNG, JPG, etc.)</small>
+<input type="file" id="signature-input" name="signature" accept="image/*" hidden>
+
+<label for="signature-input" class="signature-upload-btn">
+    📄 Choose Signature
+</label>
+
+<span id="signature-file-name">No file selected</span>
+
+<small style="color: var(--muted); margin-top: 4px; display: block;">
+    Upload signature image (PNG, JPG, etc.)
+</small>
                 </div>
                 <div style="grid-column: 1 / -1;">
                     <button type="submit" class="button button-primary">Save Update</button>
@@ -214,10 +222,29 @@ require_once __DIR__ . '/includes/header.php';
 
             statusSelect.addEventListener('change', toggleSignatureField);
             toggleSignatureField();
+
+            function printHistoryTimeline() {
+                const body = document.body;
+                body.classList.add('print-history-only');
+
+                window.print();
+
+                window.onafterprint = function () {
+                    body.classList.remove('print-history-only');
+                    window.onafterprint = null;
+                };
+            }
         </script>
 
-        <section class="panel">
-            <h2>History Timeline</h2>
+        <section class="panel" id="history-panel">
+            <div class="panel-header">
+                <h2>History Timeline</h2>
+                <div class="print-controls">
+                    <button type="button" class="button button-secondary" onclick="printHistoryTimeline()">
+                        Print / Download PDF
+                    </button>
+                </div>
+            </div>
             <?php if (count($history) === 0): ?>
                 <p class="empty-state">No timeline entries have been recorded.</p>
             <?php else: ?>
